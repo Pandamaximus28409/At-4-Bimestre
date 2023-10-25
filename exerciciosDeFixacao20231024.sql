@@ -1,27 +1,65 @@
-CREATE DATABASE exercicios_trigger;
-USE exercicios_trigger;
+/*EX 1*/
 
--- Criação das tabelas
-CREATE TABLE Clientes (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    nome VARCHAR(255) NOT NULL
-);
+DELIMITER //
+CREATE TRIGGER InsereCliente AFTER INSERT ON Clientes
+FOR EACH ROW
+BEGIN
+    INSERT INTO Auditoria (mensagem) VALUES (CONCAT('Novo cliente inserido em ', NOW()));
+END;
+//
+DELIMITER ;
 
-CREATE TABLE Auditoria (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    mensagem TEXT NOT NULL,
-    data_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+/*EX 2*/
 
-CREATE TABLE Produtos (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    nome VARCHAR(255) NOT NULL,
-    estoque INT NOT NULL
-);
+DELIMITER //
+CREATE TRIGGER TentativaCliente BEFORE DELETE ON Clientes
+FOR EACH ROW
+BEGIN
+    INSERT INTO Auditoria (mensagem) VALUES (CONCAT('Tentativa de exclusão por meio do cliente ', OLD.nome, ' em ', NOW()));
+END;
+//
+DELIMITER ;
 
-CREATE TABLE Pedidos (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    produto_id INT,
-    quantidade INT NOT NULL,
-    FOREIGN KEY (produto_id) REFERENCES Produtos(id)
-);
+/*EX 3*/
+
+DELIMITER $$
+
+CREATE TRIGGER NovoNome
+AFTER UPDATE ON Clientes
+FOR EACH ROW
+BEGIN
+    INSERT INTO Auditoria (mensagem)
+    VALUES (CONCAT('Nome antigo: ', OLD.nome, ' - Novo nome: ', NEW.nome, ' - Data e hora da atualização: ', NOW()));
+END;
+$$
+
+DELIMITER ;
+ 
+/*EX 4*/
+
+CREATE TRIGGER `NomeNaoVazio` BEFORE UPDATE ON `Clientes` FOR EACH ROW
+BEGIN
+    IF NEW.nome = '' OR NEW.nome IS NULL THEN
+        INSERT INTO `Auditoria` (mensagem) VALUES ('Erro ao atualizar nome do cliente. O nome não pode ser vazio ou NULL.');
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Erro ao atualizar nome do cliente. O nome não pode ser vazio ou NULL.';
+    END IF;
+END;
+
+
+/* EX 5*/
+
+CREATE TRIGGER `atualiza_estoque` AFTER INSERT ON `Pedidos`
+FOR EACH ROW
+BEGIN
+
+  UPDATE `Produtos`
+  SET `estoque` = `estoque` - `NEW`.`quantidade`
+  WHERE `id` = `NEW`.`produto_id`;
+
+  IF `NEW`.`quantidade` > `Produtos`.`estoque` THEN
+    INSERT INTO `Auditoria` (mensagem)
+    VALUES ('Estoque baixo para o produto ' + CAST(`NEW`.`produto_id` AS VARCHAR(255)) + '. Estoque atual: ' + CAST(`Produtos`.`estoque` AS VARCHAR(255)));
+  END IF;
+
+END;
+
